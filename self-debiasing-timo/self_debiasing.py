@@ -97,7 +97,7 @@ def gen_prompt(prompts_filename , output_dir, api_key, models=['gpt2', 'gpt2-med
             output_path = os.path.join(output_dir, f'prompted_generations_{model_name}_{mode}.txt')
             with open(output_path, 'w', encoding='utf8') as fh:
                 for prompt in prompts:
-                    fh.write(json.dumps(prompt.to_dict()) + '\n')
+                    fh.write(json.dumps(prompt.to_dict(), ensure_ascii=False) + '\n')
 
 
 if __name__ == '__main__':
@@ -198,5 +198,5 @@ if __name__ == '__main__':
             output_path = os.path.join(args.output_dir, f'prompted_generations_{model_name}_{mode}.txt')
             with open(output_path, 'w', encoding='utf8') as fh:
                 for prompt in prompts:
-                    fh.write(json.dumps(prompt.to_dict()) + '\n')
+                    fh.write(json.dumps(prompt.to_dict(), ensure_ascii=False) + '\n')
 
