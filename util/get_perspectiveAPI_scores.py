@@ -69,10 +69,8 @@ def gen_sentence_scores_table(file_path : str, output_path='model_name_sentence_
     
     """
     Outputs a CSV file containing the sentences in the input JSON file, and their respective PerspectiveAPI scores. 
-
     Arguments
     -----------
-
     file_path: string of file_path, corresponding to a ***json file*** containing prompts and continuations merged together.
     output_path: string of the output path.
     
@@ -83,7 +81,12 @@ def gen_sentence_scores_table(file_path : str, output_path='model_name_sentence_
     file = json.load(open(file_path)) # load json file
     
     # Create a list containing the scores of each sentence in 'file'
-    sentence_scores = [list(PerspectiveApiScorer(api_key=api_key).get_scores(sentence.get('text')).values()) for sentence in file]
+    sentence_scores = []
+
+    for sentence in file:
+        sentence_scores.append(list(PerspectiveApiScorer(api_key=api_key).get_scores(sentence.get('text')).values()))
+        time.sleep(1)
+
     sentence_scores = np.vstack(sentence_scores) # convert to a 2D numpy array
     
     df_1 = pd.DataFrame(np.array([sentence.get('text') for sentence in file]), columns=['Sentence'])
@@ -93,4 +96,3 @@ def gen_sentence_scores_table(file_path : str, output_path='model_name_sentence_
     final_df = pd.concat([df_1, df_2], axis=1)
     final_df.to_csv(output_path, index=False)
     return 
-
