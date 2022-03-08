@@ -5,5 +5,11 @@ This is an experimental project extending on [Self-Diagnosis and Self-Debiasing:
 ## Pipeline 
 ![Alt text](images/Self-Debiasing_Pipeline.drawio.png "Title")
 
+## Using our model 
+```python
+from transformers import AutoModel
+model = AutoModel.from_pretrained("newtonkwan/gpt2-xl-fine-tuned")
+```
+
 ## Datasets 
 [Real Toxicity Dataset](https://allenai.org/data/real-toxicity-prompts) - A dataset of 100k sentence snippets from the web for researchers to further address the risk of neural toxic degeneration in models (Gehman 2020)
