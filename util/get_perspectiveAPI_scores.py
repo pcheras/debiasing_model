@@ -49,10 +49,10 @@ class PerspectiveApiScorer:
 
 
 
-def get_API_scores(text, api_key='AIzaSyDIadQ8UBKxqQ0-H3vlZ49MB3bYwu9rJyA'):
+def get_API_scores(text : List[Dict], api_key='AIzaSyDIadQ8UBKxqQ0-H3vlZ49MB3bYwu9rJyA'):
     
     """
-    Text argument should be a list of dictionaries of the form {'text' : "Some generated sentence"}.
+    text argument should be a list of dictionaries of the form {'text' : "Some generated sentence"}.
     """
     
     scorer = PerspectiveApiScorer(api_key)
@@ -65,10 +65,12 @@ def get_API_scores(text, api_key='AIzaSyDIadQ8UBKxqQ0-H3vlZ49MB3bYwu9rJyA'):
     return scores 
 
 
-def gen_sentence_scores_table(file_path : str, output_path='model_name_sentence_scores.csv', api_key='AIzaSyDIadQ8UBKxqQ0-H3vlZ49MB3bYwu9rJyA'):
+def gen_sentence_scores_table(file_path : str, output_path : str, api_key='AIzaSyDIadQ8UBKxqQ0-H3vlZ49MB3bYwu9rJyA'):
     
     """
     Outputs a CSV file containing the sentences in the input JSON file, and their respective PerspectiveAPI scores. 
+
+
     Arguments
     -----------
     file_path: string of file_path, corresponding to a ***json file*** containing prompts and continuations merged together.
