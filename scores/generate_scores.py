@@ -10,4 +10,4 @@ if __name__ == '__main__':
     
     # Calculate the scores table using PerspectiveAPI
     paths = ['./sd-output/gpt2-medium_biased_continuations.json', './sd-output/gpt2-medium_debiased_continuations.json']
-    create_score_table(file_paths = paths, model_names = ['GPT2-medium-BIASED', 'GPT2-medium-DEBIASED'], output_path = 'scores.csv')
+    create_score_table(file_paths = paths, model_names = ['GPT2-medium-BIASED', 'GPT2-medium-DEBIASED'], output_path = 'model_scores.csv')
