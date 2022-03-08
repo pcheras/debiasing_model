@@ -99,6 +99,22 @@ def gen_prompt(prompts_filename , output_dir, api_key, models=['gpt2', 'gpt2-med
                 for prompt in prompts:
                     fh.write(json.dumps(prompt.to_dict(), ensure_ascii=False) + '\n')
 
+def get_debiased_logits(prompt, models=['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'], decay_constant=50, epsilon=0.01, do_sample=False, min_length=20, max_length=20, top_k=5, num_beams=3, num_return_sequences=1,  max_prompts=-1, seed=42, debug=False):
+    
+    
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    if max_prompts > 0:
+        prompts = prompts[:max_prompts]
+
+    for model_idx, model_name in enumerate(models):
+        debiasing_prefixes = DEBIASING_PREFIXES
+        wrapper = GPT2Wrapper(model_name=model_name, use_cuda=False)
+        logits = wrapper.get_debiased_scores(prompt, debiasing_prefixes=debiasing_prefixes, decay_constant=decay_constant, epsilon=epsilon,
+                        debug=debug, min_length=min_length, max_length=max_length, do_sample=do_sample,
+                        num_beams=num_beams, top_k=top_k, num_return_sequences=num_return_sequences)
+    return logits
 
 if __name__ == '__main__':
 

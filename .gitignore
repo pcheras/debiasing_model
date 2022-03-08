@@ -130,3 +130,4 @@ dmypy.json
 .vscode/launch.json
 .vscode/settings.json
 realtoxicityprompts-data/*
+gpt2-medium-vanilla-debiased/*

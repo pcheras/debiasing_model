@@ -260,7 +260,7 @@ class GPT2Wrapper(ModelWrapper):
 
 ### Added
 
-    def get_diased_scores(self, input_texts: List[str], debiasing_prefixes: List[str], decay_constant: float = 50,
+    def get_debiased_scores(self, input_texts: List[str], debiasing_prefixes: List[str], decay_constant: float = 50,
                                     epsilon: float = 0.01, debug: bool = False, min_length: int = None, max_length: int = None,
                                     **kwargs) -> List[str]:
 
