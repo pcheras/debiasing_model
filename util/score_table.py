@@ -12,6 +12,12 @@ import time
 def create_score_table(file_paths : List[str], model_names : List[str], output_path='model_scores.csv'):
     
     """
+    Generates a table of average scores for each PerspectiveAPI attribute using generated sentence output from different models
+    (for example see https://github.com/beston91/debiasing_model/blob/main/scores/scores.csv)
+    
+    Arguments
+    --------------
+    
     file_paths: list of string file_paths, each corresponding to ***json file*** containing prompts and continuations merged together.
     model_names: list of strings, corresponding to the model that generated each output in file_paths (should match the order).
     
