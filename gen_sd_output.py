@@ -13,4 +13,4 @@ import json
 import argparse
 
 if __name__ == '__main__':
-    sd.gen_prompt(prompts_filename='./sd-input/testInput.txt', output_dir='./sd-output', api_key='AIzaSyBd1DymLi2KqN7Gx-z6rI2WlfLbD0TqyqM', max_length=5, modes=['debiased'], models=['gpt2-medium'])
+    sd.gen_prompt(prompts_filename='./sd-input/rtp-prompts-all.txt', output_dir='./sd-output', api_key='AIzaSyBd1DymLi2KqN7Gx-z6rI2WlfLbD0TqyqM', max_length=20, modes=['debiased'], models=['gpt2-xl'], not_challenging_only=True)

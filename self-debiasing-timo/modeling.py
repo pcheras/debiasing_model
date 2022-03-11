@@ -259,8 +259,39 @@ class GPT2Wrapper(ModelWrapper):
         return loss
 
 ### Added
+    def generate_self_debiasing_and_debiased_scores(self, input_texts: List[str], debiasing_prefixes: List[str], decay_constant: float = 50,
+                                epsilon: float = 0.01, debug: bool = False, min_length: int = None, max_length: int = None,
+                                **kwargs) -> List[str]:
 
-    def get_diased_scores(self, input_texts: List[str], debiasing_prefixes: List[str], decay_constant: float = 50,
+        self._model.init_logits_processor(num_debiasing_prefixes=len(debiasing_prefixes), decay_constant=decay_constant, epsilon=epsilon,
+                                          debug=debug, tokenizer=self._tokenizer)
+        inputs = input_texts.copy()
+        for debiasing_prefix in debiasing_prefixes:
+            for input_text in input_texts:
+                inputs += [debiasing_prefix + input_text]
+
+        inputs = self._tokenizer.batch_encode_plus(inputs, padding=True, return_tensors='pt')
+        inputs['attention_mask'] = torch.flip(inputs['attention_mask'], dims=[1])
+        shifts = inputs['attention_mask'].shape[-1] - inputs['attention_mask'].sum(dim=-1)
+        for batch_idx in range(inputs['input_ids'].shape[0]):
+            inputs['input_ids'][batch_idx] = inputs['input_ids'][batch_idx].roll(shifts[batch_idx].item())
+
+        inputs = {k: v.to(self._device) for k, v in inputs.items()}
+        input_length = inputs['input_ids'].shape[1]
+        if min_length is not None:
+            min_length = min_length + input_length
+        if max_length is not None:
+            max_length = max_length + input_length
+
+        generated_output = self._model.generate(**inputs, return_dict_in_generate=True, min_length=min_length, max_length=max_length, output_scores=True, **kwargs)
+        output_ids = generated_output['sequences']
+        batch_size = output_ids.shape[0] // (1 + len(debiasing_prefixes))
+
+        new_output_ids = output_ids[:batch_size, inputs['input_ids'].shape[1]:]
+        scores = generated_output['scores']
+        return self._tokenizer.batch_decode(new_output_ids), scores
+
+    def get_debiased_scores(self, input_texts: List[str], debiasing_prefixes: List[str], decay_constant: float = 50,
                                     epsilon: float = 0.01, debug: bool = False, min_length: int = None, max_length: int = None,
                                     **kwargs) -> List[str]:
 
@@ -286,5 +317,9 @@ class GPT2Wrapper(ModelWrapper):
                 max_length = max_length + input_length
 
             generated_output = self._model.generate(**inputs, return_dict_in_generate=True, min_length=min_length, max_length=max_length, output_scores=True, **kwargs)
+            scores = generated_output['scores']
+            output_ids = generated_output['sequences']
+            # batch_size = output_ids.shape[0] // (1 + len(debiasing_prefixes))
+            # scores = scores[:batch_size, inputs['input_ids'].shape[1]:]
             
-            return generated_output['scores']
+            return scores 
