@@ -22,15 +22,15 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 sys.path.insert(1, './self-debiasing-timo')
-from modeling import GPT2Wrapper
-import self_debiasing as sd
 
+import self_debiasing as sd
+from modeling import GPT2Wrapper
 # Global
 DEBUG = False
 INPUT_DIR = 'articles'
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 6  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
@@ -52,6 +52,7 @@ EPS = 1e-8
 WARMUP_STEPS = 1e2
 SEED = 2020
 
+
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         prompts = inputs.get("prompts")
@@ -60,19 +61,19 @@ class CustomTrainer(Trainer):
         inputs.pop("prompts_length")
         cont_logits = inputs.get("cont_logits")
         inputs.pop("cont_logits")
-        
-        labels = inputs.get("labels")
+
         # forward pass
         outputs = model(**inputs)
-        softmax_cont_logits = nn.functional.softmax(cont_logits, dim=1)
+        softmax_cont_logits = nn.functional.softmax(cont_logits, dim=2)
         logits = outputs.get("logits")
-        softmax_logits = nn.functional.softmax(logits, dim=1)
+        softmax_logits = nn.functional.softmax(logits, dim=2)
         cont_logits_padded = softmax_logits.clone().detach()
-        
+
         m, n, p = cont_logits_padded.shape
         for i in range(m):
             for j in range(prompts_length[i], prompts_length[i] + 20):
-               cont_logits_padded[i][j] = softmax_cont_logits[i][j-prompts_length[i]]
+                cont_logits_padded[i][j] = softmax_cont_logits[i][j -
+                                                                  prompts_length[i]]
         loss_fct = nn.CrossEntropyLoss()
         loss = loss_fct(
             softmax_logits.view(-1, self.model.config.vocab_size), cont_logits_padded.view(-1, self.model.config.vocab_size))
@@ -91,8 +92,8 @@ class DataCollator:
         prompts_length = [example['prompt_length'] for example in examples]
         cont_logits = [example['cont_logits'] for example in examples]
         output_dict = dict(prompts=prompts, labels=torch.tensor(list(labels)), input_ids=torch.tensor(
-            list(input_ids)), attention_mask=torch.tensor(list(attention_mask)), prompts_length = torch.tensor(list(prompts_length)),
-                cont_logits = torch.tensor(list(cont_logits)))
+            list(input_ids)), attention_mask=torch.tensor(list(attention_mask)), prompts_length=torch.tensor(list(prompts_length)),
+            cont_logits=torch.tensor(list(cont_logits)))
         return output_dict
 
 
@@ -137,12 +138,14 @@ def find_element_in_list(element, list_element):
 def tokenize_function(input):
     prompts = input["prompt"]
     temp_dict = tokenizer(prompts)
-    output_texts, output_scores = sd.gen_prompt_and_debiased_scores(wrapper, prompts)
-        
+    output_texts, output_scores = sd.gen_prompt_and_debiased_scores(
+        wrapper, prompts)
+
     encodings_dict = tokenizer(input["text"], padding=True)
     encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
     encodings_dict["prompt"] = input["prompt"]
-    encodings_dict["prompt_length"] = copy.deepcopy(encodings_dict["input_ids"])
+    encodings_dict["prompt_length"] = copy.deepcopy(
+        encodings_dict["input_ids"])
     encodings_dict["cont_logits"] = copy.deepcopy(encodings_dict["input_ids"])
 
     for i in range(len(encodings_dict["labels"])):
@@ -248,16 +251,11 @@ if __name__ == '__main__':
 
     # Generate
     path = "./{}-vanilla-debiased".format(MODEL)
-    # path="gpt2-medium"
     generator = pipeline('text-generation', model=path)
 
     prefix_text = "Trump is the new"
-    sentence = generator(prefix_text, max_length=len(
-        prefix_text.split()) + 5, num_return_sequences=1)[0]['generated_text']
+    sentence = generator(prefix_text, max_new_length=20,
+                         num_return_sequences=1)[0]['generated_text']
     print(sentence)
-
-    print(len(prefix_text.split()))
-    print(len(sentence.split()))
-
     # model.save_pretrained(path)
     # model = model.from_pretrained(path)

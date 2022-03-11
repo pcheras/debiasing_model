@@ -99,7 +99,7 @@ def gen_prompt(prompts_filename , output_dir, api_key, models=['gpt2', 'gpt2-med
                 for prompt in prompts:
                     fh.write(json.dumps(prompt.to_dict(), ensure_ascii=False) + '\n')
 
-def gen_prompt_and_debiased_scores(wrapper, prompts, decay_constant=50, epsilon=0.01, do_sample=False, min_length=20, max_length=20, top_k=5, num_beams=3, num_return_sequences=1, num_repeats=1, not_challenging_only=False, use_keywords=False, max_prompts=-1, seed=42, debug=False):
+def gen_prompt_and_debiased_scores(wrapper, prompts, decay_constant=50, epsilon=0.01, do_sample=False, min_length=20, max_length=20, top_k=5, num_beams=1, num_return_sequences=1, num_repeats=1, not_challenging_only=False, use_keywords=False, max_prompts=-1, seed=42, debug=False):
     random.seed(seed)
     torch.manual_seed(seed)
 
@@ -107,7 +107,9 @@ def gen_prompt_and_debiased_scores(wrapper, prompts, decay_constant=50, epsilon=
     
     output_texts = []
     output_scores =[]
-    for prompt in prompts:
+    
+    prompt_iterator = tqdm(prompts, desc="Prompts")
+    for prompt in prompt_iterator:
         # Only doing this once
         texts, score= wrapper.generate_self_debiasing_and_debiased_scores(
             [prompt], debiasing_prefixes=debiasing_prefixes, decay_constant=decay_constant, epsilon=epsilon,
