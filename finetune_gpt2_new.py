@@ -1,5 +1,6 @@
-
 # Load dataset and split into train and validation files.
+import sys
+from cvxpy import length
 from sklearn.model_selection import train_test_split
 from datasets import load_dataset, ClassLabel
 import json
@@ -18,25 +19,24 @@ import copy
 from transformers import Trainer
 from IPython.core.debugger import set_trace
 from transformers import pipeline
+from util.txt_to_json import txt_to_json
 
-import sys
-# insert at 1, 0 is the script path (or '' in REPL)
 sys.path.insert(1, './self-debiasing-timo')
-
+from modeling import GPT2Wrapper
 import self_debiasing as sd
 
-## Global
+# Global
 DEBUG = False
 INPUT_DIR = 'articles'
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2-medium'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+MODEL = 'gpt2'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 6  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
-                    "eos_token": "<|EOS|>",
-                    "unk_token": "<|UNK|>",
-                    "pad_token": "<|PAD|>",
-                    "sep_token": "<|SEP|>"}
+                  "eos_token": "<|EOS|>",
+                  "unk_token": "<|UNK|>",
+                  "pad_token": "<|PAD|>",
+                  "sep_token": "<|SEP|>"}
 
 MAXLEN = 768  # {768, 1024, 1280, 1600}
 TRAIN_SIZE = 0.8
@@ -54,37 +54,48 @@ SEED = 2020
 
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        texts = inputs.get("texts")
-        inputs.pop("texts")
+        prompts = inputs.get("prompts")
+        inputs.pop("prompts")
+        prompts_length = inputs.get("prompts_length")
+        inputs.pop("prompts_length")
+        cont_logits = inputs.get("cont_logits")
+        inputs.pop("cont_logits")
+        
         labels = inputs.get("labels")
-
         # forward pass
         outputs = model(**inputs)
+        softmax_cont_logits = nn.functional.softmax(cont_logits, dim=1)
         logits = outputs.get("logits")
+        softmax_logits = nn.functional.softmax(logits, dim=1)
+        cont_logits_padded = softmax_logits.clone().detach()
+        
+        m, n, p = cont_logits_padded.shape
+        for i in range(m):
+            for j in range(prompts_length[i], prompts_length[i] + 20):
+               cont_logits_padded[i][j] = softmax_cont_logits[i][j-prompts_length[i]]
         loss_fct = nn.CrossEntropyLoss()
-        debiased_logits = sd.get_debiased_logits(texts, models=['gpt2-medium'])
-        print(debiased_logits)
         loss = loss_fct(
-            logits.view(-1, self.model.config.num_labels), labels.view(-1))
+            softmax_logits.view(-1, self.model.config.vocab_size), cont_logits_padded.view(-1, self.model.config.vocab_size))
         return (loss, outputs) if return_outputs else loss
+
 
 class DataCollator:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
-        
+
     def __call__(self, examples: List[dict]):
         labels = [example['labels'] for example in examples]
-        texts = [example['text'] for example in examples]
         input_ids = [example['input_ids'] for example in examples]
         attention_mask = [example['attention_mask'] for example in examples]
-        # tokenizer_output = self.tokenizer(texts, padding=True)
-        # tokenizer_output['input_ids'] = torch.tensor(tokenizer_output['input_ids'])
-        # tokenizer_output['attention_mask'] = torch.tensor(tokenizer_output['attention_mask'])
-        # print(tokenizer_output['attention_mask'].dtype)
-        # tokenizer_output["labels"] = torch.tensor(list(labels))
-        output_dict = dict(texts = texts, labels = torch.tensor(list(labels)), input_ids = torch.tensor(list(input_ids)), attention_mask = torch.tensor(list(attention_mask)))
+        prompts = [example['prompt'] for example in examples]
+        prompts_length = [example['prompt_length'] for example in examples]
+        cont_logits = [example['cont_logits'] for example in examples]
+        output_dict = dict(prompts=prompts, labels=torch.tensor(list(labels)), input_ids=torch.tensor(
+            list(input_ids)), attention_mask=torch.tensor(list(attention_mask)), prompts_length = torch.tensor(list(prompts_length)),
+                cont_logits = torch.tensor(list(cont_logits)))
         return output_dict
-    
+
+
 def show_random_elements(dataset, num_examples=2):
     assert num_examples <= len(
         dataset), "Can't pick more elements than there are in the dataset."
@@ -104,7 +115,10 @@ def show_random_elements(dataset, num_examples=2):
 
 def get_tokenizer(model_name):
     # GPT2Tokenizer.from_pretrained(model_name)
-    return GPT2Tokenizer.from_pretrained(model_name, use_fast=True)
+    tokenizer = GPT2Tokenizer.from_pretrained(model_name, use_fast=True)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding = True
+    return tokenizer
 
 
 def get_model(model_name, tokenizer):
@@ -121,21 +135,27 @@ def find_element_in_list(element, list_element):
 
 
 def tokenize_function(input):
+    prompts = input["prompt"]
+    temp_dict = tokenizer(prompts)
+    output_texts, output_scores = sd.gen_prompt_and_debiased_scores(wrapper, prompts)
+        
     encodings_dict = tokenizer(input["text"], padding=True)
-    encodings_dict["text"] = input["text"]
-    # for i in range(len(encodings_dict["text"])):
-    #     encodings_dict["text"][i] = [ord(x) for x in encodings_dict["text"][i]]
     encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
+    encodings_dict["prompt"] = input["prompt"]
+    encodings_dict["prompt_length"] = copy.deepcopy(encodings_dict["input_ids"])
+    encodings_dict["cont_logits"] = copy.deepcopy(encodings_dict["input_ids"])
+
     for i in range(len(encodings_dict["labels"])):
-        length_encoded = len(encodings_dict["labels"][i])
-        first_pad = find_element_in_list(
-            50256, encodings_dict["labels"][i])
-        if first_pad is None:
-            first_pad = length_encoded
-        for j in range(first_pad-1):
+        length_prompt = len(temp_dict["input_ids"][i])
+        for j in range(length_prompt):
             encodings_dict["labels"][i][j] = -100
+        encodings_dict["prompt_length"][i] = length_prompt
+
+        output_scores[i] = [x[0] for x in output_scores[i]]
+        encodings_dict["cont_logits"][i] = output_scores[i]
 
     return encodings_dict
+
 
 def freeze_layer(model):
     # - Freeze selective layers:
@@ -155,17 +175,20 @@ def freeze_layer(model):
     for parameter in model.lm_head.parameters():
         parameter.requires_grad = True
 
+
 if __name__ == '__main__':
+    # Pre Process
+    txt_to_json("./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
+                "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json")
     TRAIN_SIZE = 0.7
-    PATH = "./sd-output/gpt2-medium_debiased_continuations.json"
-    with open(PATH) as json_file:
+    PATH = "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
+    with open(PATH, encoding='utf-8') as json_file:
         data = json.load(json_file)
 
-    # make train and validation datasets
+    # Train and val data set
     s = pd.Series(data)
     training_data, val_data = [i.to_dict()
                                for i in train_test_split(s, train_size=TRAIN_SIZE)]
-
     name, ext = os.path.splitext(PATH)
     train_path = "{name}_{uid}{ext}".format(name=name, uid="train", ext=ext)
     val_path = "{name}_{uid}{ext}".format(name=name, uid="val", ext=ext)
@@ -173,32 +196,28 @@ if __name__ == '__main__':
     for path, data in zip([train_path, val_path], [training_data, val_data]):
         with open(path, 'w') as fp:
             for key in data:
-                json.dump(data[key], fp)
+                json.dump(data[key], fp, ensure_ascii=False)
                 fp.write('\n')
 
     datasets = load_dataset(
         "json", data_files={"train": train_path, "validation": val_path})
 
-    model_name = 'gpt2-medium'  # 'gpt2-medium' # 'distilgpt2' 'gpt-XL'
-    tokenizer = get_tokenizer(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding = True
-    model = get_model(model_name, tokenizer)
+    # Models
+    tokenizer = get_tokenizer(MODEL)
+    data_collator = DataCollator(tokenizer)
+    model = get_model(MODEL, tokenizer)
     freeze_layer(model)
+    # For self-debiasing
+    wrapper = GPT2Wrapper(model_name=MODEL, use_cuda=False)
 
+    # Train
     tokenized_datasets = datasets.map(
         tokenize_function, batched=True, remove_columns=["text"])
-    
-    
-    
-   
     train_dataset = tokenized_datasets["train"]
     val_dataset = tokenized_datasets["validation"]
 
-    # train_dataset.set_format(type=train_dataset.format["type"], columns=list(train_dataset.features.keys()))
-
     training_args = TrainingArguments(
-        f"{model_name}-vanilla-debiased",  # output_dir="/content/",
+        f"{MODEL}-vanilla-debiased",  # output_dir="/content/",
         num_train_epochs=EPOCHS,
         per_device_train_batch_size=TRAIN_BATCHSIZE,
         per_device_eval_batch_size=TRAIN_BATCHSIZE,
@@ -214,7 +233,6 @@ if __name__ == '__main__':
         load_best_model_at_end=False,
         remove_unused_columns=False
     )
-    data_collator = DataCollator(tokenizer)
 
     trainer = CustomTrainer(
         model=model,
@@ -225,11 +243,11 @@ if __name__ == '__main__':
         data_collator=data_collator
     )
 
-    #---------------------------------------------------#
     trainer.train()
     trainer.save_model()
 
-    path = "./{}-vanilla-debiased".format(model_name)
+    # Generate
+    path = "./{}-vanilla-debiased".format(MODEL)
     # path="gpt2-medium"
     generator = pipeline('text-generation', model=path)
 
