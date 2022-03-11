@@ -1,7 +1,7 @@
 import json
 import re
 
-def txt_to_json(input_path : str, output_path : str = 'debiased_continuations.json'):
+def txt_to_json(input_path : str, output_path : str = 'debiased_continuations.json', add_prompt = False):
     
     """""
     Produce a JSON file which contains the merged prompt & generated continuation sentences found in the input .txt file.
@@ -21,7 +21,10 @@ def txt_to_json(input_path : str, output_path : str = 'debiased_continuations.js
             text_dict = json.loads(blob[:-1])
             
         complete_text = text_dict['prompt'] + ' ' + text_dict['continuations'][0]['text']
-        merged.append({'text' : complete_text, 'prompt': text_dict['prompt']})
+        if add_prompt:
+            merged.append({'text' : complete_text, 'prompt': text_dict['prompt']})
+        else:
+            merged.append({'text' : complete_text})
         
     with open(output_path, 'w') as fout:
         json.dump(merged , fout, ensure_ascii=False)

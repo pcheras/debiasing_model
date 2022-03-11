@@ -182,7 +182,7 @@ def freeze_layer(model):
 if __name__ == '__main__':
     # Pre Process
     txt_to_json("./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
-                "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json")
+                "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
     TRAIN_SIZE = 0.7
     PATH = "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
     with open(PATH, encoding='utf-8') as json_file:
