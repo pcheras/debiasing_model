@@ -219,10 +219,12 @@ if __name__ == '__main__':
     # Models
     tokenizer = get_tokenizer(MODEL)
     data_collator = DataCollator(tokenizer)
-    model = get_model(MODEL, tokenizer)
-    freeze_layer(model)
+    # model = get_model(MODEL, tokenizer)
+    
     # For self-debiasing
-    wrapper = GPT2Wrapper(model_name=MODEL, use_cuda=False)
+    wrapper = GPT2Wrapper(model_name=MODEL, tokenizer=tokenizer, use_cuda=False)
+    model = wrapper._model
+    freeze_layer(model)
 
     # Train
     tokenized_datasets = datasets.map(

@@ -142,13 +142,13 @@ class T5Wrapper(ModelWrapper):
 
 class GPT2Wrapper(ModelWrapper):
 
-    def __init__(self, model_name: str = "gpt2-xl", use_cuda: bool = True):
+    def __init__(self, model_name: str = "gpt2-xl", tokenizer: any = GPT2Tokenizer.from_pretrained("gpt2-xl"), use_cuda: bool = True):
         """
         :param model_name: the name of the pretrained GPT2 model (default: "gpt2-xl")
         :param use_cuda: whether to use CUDA
         """
         super().__init__(use_cuda=use_cuda)
-        self._tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+        self._tokenizer = tokenizer 
         self._model = SelfDebiasingGPT2LMHeadModel.from_pretrained(model_name)  # type: SelfDebiasingGPT2LMHeadModel
         if use_cuda:
             self._model.parallelize()
