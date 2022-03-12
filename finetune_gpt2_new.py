@@ -1,4 +1,3 @@
-# Load dataset and split into train and validation files.
 import sys
 from cvxpy import length
 from sklearn.model_selection import train_test_split
@@ -21,11 +20,8 @@ from IPython.core.debugger import set_trace
 from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
-sys.path.insert(1, './self-debiasing-timo')
-
-import self_debiasing as sd
-from modeling import GPT2Wrapper
 # Global
+COLAB = False
 DEBUG = False
 INPUT_DIR = 'articles'
 USE_APEX = False
@@ -52,6 +48,13 @@ EPS = 1e-8
 WARMUP_STEPS = 1e2
 SEED = 2020
 
+# DON'T MOVE
+if COLAB:
+    sys.path.insert(1, './debiasing_model/self-debiasing-timo')
+else:
+    sys.path.insert(1, './self-debiasing-timo') 
+import self_debiasing as sd
+from modeling import GPT2Wrapper
 
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
@@ -124,7 +127,10 @@ def get_tokenizer(model_name):
 
 def get_model(model_name, tokenizer):
     # AutoModelForCausalLM.from_pretrained(model_checkpoint)
-    return GPT2LMHeadModel.from_pretrained(model_name, pad_token_id=tokenizer.eos_token_id)
+    model = GPT2LMHeadModel.from_pretrained(model_name, pad_token_id=tokenizer.eos_token_id)
+    if COLAB:
+        model.cuda()
+    return model
 
 
 def find_element_in_list(element, list_element):
@@ -181,10 +187,15 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Pre Process
-    txt_to_json("./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
-                "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
+    if COLAB:
+        txt_to_json("./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
+                    "./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
+        PATH = "./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
+    else:  
+        txt_to_json("./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
+                    "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
+        PATH = "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
     TRAIN_SIZE = 0.7
-    PATH = "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
     with open(PATH, encoding='utf-8') as json_file:
         data = json.load(json_file)
 
@@ -250,7 +261,10 @@ if __name__ == '__main__':
     trainer.save_model()
 
     # Generate
-    path = "./{}-vanilla-debiased".format(MODEL)
+    if COLAB:
+        path = "./debiasing_model/{}-vanilla-debiased".format(MODEL)
+    else:
+        path = "./{}-vanilla-debiased".format(MODEL)
     generator = pipeline('text-generation', model=path)
 
     prefix_text = "Trump is the new"
