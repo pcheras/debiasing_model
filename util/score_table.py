@@ -24,7 +24,7 @@ def create_score_table(file_paths : List[str], model_names : List[str], output_p
     """
     attributes = ['toxicity', 'severe_toxicity', 'sexually_explicit', 'threat', 'profanity', 'identity_attack']
     
-    files = [json.load(open(file_path)) for file_path in file_paths] 
+    files = [json.load(open(file_path, encoding="utf8")) for file_path in file_paths] 
     all_toxicity_scores = [get_API_scores(model_outputs) for model_outputs in files]
     model_scores = []
     
