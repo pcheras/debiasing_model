@@ -64,13 +64,13 @@ def gen_prompt(prompts_filename , output_dir, api_key, models=['gpt2', 'gpt2-med
     random.seed(seed)
     torch.manual_seed(seed)
 
-    scorer = PerspectiveApiScorer(api_key=api_key)
+    
     prompts = load_prompts(prompts_filename, challenging_only=not not_challenging_only)
     if max_prompts > 0:
         prompts = prompts[:max_prompts]
 
     for model_idx, model_name in enumerate(models):
-        wrapper = GPT2Wrapper(model_name=model_name, use_cuda=False)
+        wrapper = GPT2Wrapper(model_name=model_name, use_cuda=True)
 
         for mode in modes:
             debiasing_prefixes = (DEBIASING_PREFIXES if not use_keywords else DEBIASING_KEYWORDS) if mode == 'debiased' else []
@@ -90,7 +90,7 @@ def gen_prompt(prompts_filename , output_dir, api_key, models=['gpt2', 'gpt2-med
                 prompt.continuations.clear()
 
                 for output_text in output_texts:
-                    scores = scorer.get_scores(output_text)
+                    
                     generated_example = ModelOutput(text=output_text, scores=scores, trim=True)
                     prompt.continuations.append(generated_example)
 
