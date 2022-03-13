@@ -56,6 +56,16 @@ else:
 import self_debiasing as sd
 from modeling import GPT2Wrapper
 
+
+DEBIASING_PREFIXES = [
+    "The following text contains rude, disrespectful, or unreasonable language:\n",
+    "The following text contains very hateful, aggressive, disrespectful language:\n",
+    "The following text contains sexually explicit language:\n",
+    "The following text contains a threat:\n",
+    "The following text contains negative or hateful language targeting someone because of their identity:\n",
+    "The following text contains swear words, curse words, or other obscene or profane language:\n",
+]
+
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         prompts = inputs.get("prompts")
@@ -65,22 +75,87 @@ class CustomTrainer(Trainer):
         cont_logits = inputs.get("cont_logits")
         inputs.pop("cont_logits")
 
+        input_ids = inputs.get("input_ids")
+        batch = input_ids.shape[0]
         # forward pass
-        outputs = model(**inputs)
-        softmax_cont_logits = nn.functional.softmax(cont_logits, dim=2)
-        logits = outputs.get("logits")
-        softmax_logits = nn.functional.softmax(logits, dim=2)
-        cont_logits_padded = softmax_logits.clone().detach()
+        debiasing_prefixes = DEBIASING_PREFIXES
+        model.init_logits_processor(num_debiasing_prefixes=len(debiasing_prefixes), decay_constant=50, epsilon=0.01,
+                                          debug=False, tokenizer=tokenizer)
 
-        m, n, p = cont_logits_padded.shape
-        for i in range(m):
-            for j in range(prompts_length[i], prompts_length[i] + 20):
-                cont_logits_padded[i][j] = softmax_cont_logits[i][j -
-                                                                  prompts_length[i]]
+        input_prefixes_temp = [''] + debiasing_prefixes
+        input_prefixes = [val for val in input_prefixes_temp for _ in range(batch)]
+        input_prefixes = tokenizer.batch_encode_plus(input_prefixes, padding=True, return_tensors='pt')
+        input_prefixes['attention_mask'] = torch.flip(input_prefixes['attention_mask'], dims=[1])
+
+        shifts = input_prefixes['attention_mask'].shape[-1] - input_prefixes['attention_mask'].sum(dim=-1)
+        for batch_idx in range(input_prefixes['input_ids'].shape[0]):
+            input_prefixes['input_ids'][batch_idx] = input_prefixes['input_ids'][batch_idx].roll(shifts[batch_idx].item())
+
+        input_prefixes = {k: v for k, v in input_prefixes.items()}
+        # input_prefixes = {k: v.to(self._device) for k, v in input_prefixes.items()}
+
+        input_ids_repeated = input_ids.repeat(len(debiasing_prefixes) + 1, 1)
+        attention_mask = torch.ones_like(input_ids_repeated)
+
+        attention_mask = torch.cat([input_prefixes['attention_mask'], attention_mask], dim=-1)
+        input_ids_repeated = torch.cat([input_prefixes['input_ids'], input_ids_repeated], dim=-1)
+
+        target_ids = input_ids_repeated.clone()
+        # trg_len = 0
+        # trg_len += shifts[0]
+        
+        prompts_mask = []
+        for i in range(len(shifts)):
+            prompts_mask.append(shifts[i] + prompts_length[i % batch])
+        for i in range(len(prompts_mask)):
+            target_ids[i, :prompts_mask[i]] = -100
+
+
+        position_ids = attention_mask.long().cumsum(-1) - 1
+        position_ids.masked_fill_(attention_mask == 0, 1)
+
+        outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
+        lm_logits = outputs[1].clone().detach()
+
+        for idx in range(lm_logits.shape[1]):
+            lm_logits[:, idx, :] = model.logits_processor(input_ids=None, scores=lm_logits[:, idx, :])
+
+        batch_size = lm_logits.shape[0] // (1 + len(debiasing_prefixes))
+        for i in range(len(prompts_mask)):
+            for j in range(prompts_mask[i]):
+                lm_logits[:batch_size, j, :] = outputs[1][:batch_size, j, :]
+        
+        # Flatten the tokens
         loss_fct = nn.CrossEntropyLoss()
-        loss = loss_fct(
-            softmax_logits.view(-1, self.model.config.vocab_size), cont_logits_padded.view(-1, self.model.config.vocab_size))
+        sm_lm_logits = nn.functional.softmax(lm_logits, dim=2)
+        sm_outputs = nn.functional.softmax(outputs[1], dim=2)
+        loss = loss_fct(sm_lm_logits.view(-1, model.config.vocab_size), sm_outputs.view(-1, model.config.vocab_size))
         return (loss, outputs) if return_outputs else loss
+    
+    # def compute_loss(self, model, inputs, return_outputs=False):
+    #     prompts = inputs.get("prompts")
+    #     inputs.pop("prompts")
+    #     prompts_length = inputs.get("prompts_length")
+    #     inputs.pop("prompts_length")
+    #     cont_logits = inputs.get("cont_logits")
+    #     inputs.pop("cont_logits")
+
+    #     # forward pass
+    #     outputs = model(**inputs)
+    #     softmax_cont_logits = nn.functional.softmax(cont_logits, dim=2)
+    #     logits = outputs.get("logits")
+    #     softmax_logits = nn.functional.softmax(logits, dim=2)
+    #     cont_logits_padded = softmax_logits.clone().detach()
+
+    #     m, n, p = cont_logits_padded.shape
+    #     for i in range(m):
+    #         for j in range(prompts_length[i], prompts_length[i] + 20):
+    #             cont_logits_padded[i][j] = softmax_cont_logits[i][j -
+    #                                                               prompts_length[i]]
+    #     loss_fct = nn.CrossEntropyLoss()
+    #     loss = loss_fct(
+    #         softmax_logits.view(-1, self.model.config.vocab_size), cont_logits_padded.view(-1, self.model.config.vocab_size))
+    #     return (loss, outputs) if return_outputs else loss
 
 
 class DataCollator:
@@ -144,8 +219,8 @@ def find_element_in_list(element, list_element):
 def tokenize_function(input):
     prompts = input["prompt"]
     temp_dict = tokenizer(prompts)
-    output_texts, output_scores = sd.gen_prompt_and_debiased_scores(
-        wrapper, prompts)
+    # output_texts, output_scores = sd.gen_prompt_and_debiased_scores(
+    #     wrapper, prompts)
 
     encodings_dict = tokenizer(input["text"], padding=True)
     encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
@@ -160,8 +235,8 @@ def tokenize_function(input):
             encodings_dict["labels"][i][j] = -100
         encodings_dict["prompt_length"][i] = length_prompt
 
-        output_scores[i] = [x[0] for x in output_scores[i]]
-        encodings_dict["cont_logits"][i] = output_scores[i]
+        # output_scores[i] = [x[0] for x in output_scores[i]]
+        # encodings_dict["cont_logits"][i] = output_scores[i]
 
     return encodings_dict
 
@@ -187,25 +262,28 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Pre Process
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-beston"
     if COLAB:
-        txt_to_json("./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
-                    "./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
-        PATH = "./debiasing_model/sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
+        sd_output_path = "./debiasing_model/sd-output/"
+        trainer_data_path = "./debiasing_model/trainer_data/"
     else:  
-        txt_to_json("./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.txt",
-                    "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json", add_prompt=True)
-        PATH = "./sd-output/gpt2-xl-debiased-challenging-continuations-100-20.json"
+        sd_output_path = "./sd-output/"
+        trainer_data_path = "./trainer_data/"
+
+    txt_data = data_set_name + ".txt"
+    json_data = data_set_name + ".json"
+    txt_to_json(sd_output_path + txt_data, sd_output_path + json_data, add_prompt=True)
+    
     TRAIN_SIZE = 0.7
-    with open(PATH, encoding='utf-8') as json_file:
+    with open(sd_output_path + json_data, encoding='utf-8') as json_file:
         data = json.load(json_file)
 
     # Train and val data set
     s = pd.Series(data)
     training_data, val_data = [i.to_dict()
                                for i in train_test_split(s, train_size=TRAIN_SIZE)]
-    name, ext = os.path.splitext(PATH)
-    train_path = "{name}_{uid}{ext}".format(name=name, uid="train", ext=ext)
-    val_path = "{name}_{uid}{ext}".format(name=name, uid="val", ext=ext)
+    train_path = "{trainer_data_path}{name}_{uid}{ext}".format(trainer_data_path=trainer_data_path, name=data_set_name, uid="train", ext=".json")
+    val_path = "{trainer_data_path}{name}_{uid}{ext}".format(trainer_data_path=trainer_data_path, name=data_set_name, uid="val", ext=".json")
 
     for path, data in zip([train_path, val_path], [training_data, val_data]):
         with open(path, 'w') as fp:
@@ -222,7 +300,7 @@ if __name__ == '__main__':
     # model = get_model(MODEL, tokenizer)
     
     # For self-debiasing
-    wrapper = GPT2Wrapper(model_name=MODEL, tokenizer=tokenizer, use_cuda=False)
+    wrapper = GPT2Wrapper(model_name=MODEL, tokenizer=tokenizer, use_cuda=COLAB)
     model = wrapper._model
     freeze_layer(model)
 

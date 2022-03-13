@@ -80,7 +80,7 @@ def gen_sentence_scores_table(file_path : str, output_path : str, api_key='AIzaS
 
     attributes = ['toxicity', 'severe_toxicity', 'sexually_explicit', 'threat', 'profanity', 'identity_attack']
     
-    file = json.load(open(file_path)) # load json file
+    file = json.load(open(file_path, encoding="utf8")) # load json file
     
     # Create a list containing the scores of each sentence in 'file'
     sentence_scores = []
