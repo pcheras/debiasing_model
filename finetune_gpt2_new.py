@@ -27,7 +27,7 @@ INPUT_DIR = 'articles'
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
 MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
-UNFREEZE_LAST_N = 6  # The last N layers to unfreeze for training
+UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
                   "unk_token": "<|UNK|>",
@@ -40,8 +40,8 @@ if USE_APEX:
     TRAIN_BATCHSIZE = 4
     BATCH_UPDATE = 16
 else:
-    TRAIN_BATCHSIZE = 2
-    BATCH_UPDATE = 32
+    TRAIN_BATCHSIZE = 1
+    BATCH_UPDATE = 16
 EPOCHS = 4
 LR = 5e-4
 EPS = 1e-8
@@ -68,12 +68,8 @@ DEBIASING_PREFIXES = [
 
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        prompts = inputs.get("prompts")
-        inputs.pop("prompts")
         prompts_length = inputs.get("prompts_length")
         inputs.pop("prompts_length")
-        cont_logits = inputs.get("cont_logits")
-        inputs.pop("cont_logits")
 
         input_ids = inputs.get("input_ids")
         batch = input_ids.shape[0]
@@ -91,8 +87,7 @@ class CustomTrainer(Trainer):
         for batch_idx in range(input_prefixes['input_ids'].shape[0]):
             input_prefixes['input_ids'][batch_idx] = input_prefixes['input_ids'][batch_idx].roll(shifts[batch_idx].item())
 
-        input_prefixes = {k: v for k, v in input_prefixes.items()}
-        # input_prefixes = {k: v.to(self._device) for k, v in input_prefixes.items()}
+        input_prefixes = {k: v.to('cuda:0' if torch.cuda.is_available() else 'cpu') for k, v in input_prefixes.items()}
 
         input_ids_repeated = input_ids.repeat(len(debiasing_prefixes) + 1, 1)
         attention_mask = torch.ones_like(input_ids_repeated)
@@ -101,8 +96,6 @@ class CustomTrainer(Trainer):
         input_ids_repeated = torch.cat([input_prefixes['input_ids'], input_ids_repeated], dim=-1)
 
         target_ids = input_ids_repeated.clone()
-        # trg_len = 0
-        # trg_len += shifts[0]
         
         prompts_mask = []
         for i in range(len(shifts)):
@@ -117,18 +110,16 @@ class CustomTrainer(Trainer):
         outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
         lm_logits = outputs[1].clone().detach()
 
-        for idx in range(lm_logits.shape[1]):
+        for idx in range(prompts_length[0], prompts_length[0] + 20):
             lm_logits[:, idx, :] = model.logits_processor(input_ids=None, scores=lm_logits[:, idx, :])
-
-        batch_size = lm_logits.shape[0] // (1 + len(debiasing_prefixes))
-        for i in range(len(prompts_mask)):
-            for j in range(prompts_mask[i]):
-                lm_logits[:batch_size, j, :] = outputs[1][:batch_size, j, :]
         
-        # Flatten the tokens
         loss_fct = nn.CrossEntropyLoss()
-        sm_lm_logits = nn.functional.softmax(lm_logits, dim=2)
-        sm_outputs = nn.functional.softmax(outputs[1], dim=2)
+        
+        # Get the first one, they should all be the same at this point
+        lm_logits = lm_logits[0]
+        sm_lm_logits = nn.functional.softmax(lm_logits, dim=1)
+        biased_logits = outputs[1][0]
+        sm_outputs = nn.functional.softmax(biased_logits, dim=1)
         loss = loss_fct(sm_lm_logits.view(-1, model.config.vocab_size), sm_outputs.view(-1, model.config.vocab_size))
         return (loss, outputs) if return_outputs else loss
     
@@ -166,12 +157,10 @@ class DataCollator:
         labels = [example['labels'] for example in examples]
         input_ids = [example['input_ids'] for example in examples]
         attention_mask = [example['attention_mask'] for example in examples]
-        prompts = [example['prompt'] for example in examples]
         prompts_length = [example['prompt_length'] for example in examples]
-        cont_logits = [example['cont_logits'] for example in examples]
-        output_dict = dict(prompts=prompts, labels=torch.tensor(list(labels)), input_ids=torch.tensor(
-            list(input_ids)), attention_mask=torch.tensor(list(attention_mask)), prompts_length=torch.tensor(list(prompts_length)),
-            cont_logits=torch.tensor(list(cont_logits)))
+        
+        output_dict = dict(labels=torch.tensor(list(labels)), input_ids=torch.tensor(
+            list(input_ids)), attention_mask=torch.tensor(list(attention_mask)), prompts_length=torch.tensor(list(prompts_length)))
         return output_dict
 
 
@@ -224,10 +213,7 @@ def tokenize_function(input):
 
     encodings_dict = tokenizer(input["text"], padding=True)
     encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
-    encodings_dict["prompt"] = input["prompt"]
-    encodings_dict["prompt_length"] = copy.deepcopy(
-        encodings_dict["input_ids"])
-    encodings_dict["cont_logits"] = copy.deepcopy(encodings_dict["input_ids"])
+    encodings_dict["prompt_length"] = copy.deepcopy(encodings_dict["labels"])
 
     for i in range(len(encodings_dict["labels"])):
         length_prompt = len(temp_dict["input_ids"][i])
