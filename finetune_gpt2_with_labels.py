@@ -118,7 +118,7 @@ if __name__ == '__main__':
     # Preprocessing dataset
     if COLAB:
         sd_output_path = "./debiasing_model/sd-output/"
-        trainer_data_path = "./debiasing_model/trainer_data/"
+        trainer_data_path = "./debiasing_model/trainer_data_newton/"
     else:  
         sd_output_path = "./sd-output/"
         trainer_data_path = "./trainer_data_newton/"
