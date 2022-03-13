@@ -18,7 +18,7 @@ COLAB = True
 DEBUG = False
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt-xl' #'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+MODEL = 'gpt2-xl' #'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
@@ -113,7 +113,7 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Load raw dataset
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k-first-10"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
 
     # Preprocessing dataset
     if COLAB:
