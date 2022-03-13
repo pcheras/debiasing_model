@@ -18,8 +18,8 @@ COLAB = True
 DEBUG = False
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2' #'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
-UNFREEZE_LAST_N = 6  # The last N layers to unfreeze for training
+MODEL = 'gpt2-xl' #'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
                   "unk_token": "<|UNK|>",
@@ -113,7 +113,7 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Load raw dataset
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k-first-10"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
 
     # Preprocessing dataset
     if COLAB:
@@ -174,7 +174,7 @@ if __name__ == '__main__':
         save_total_limit=1,
         load_best_model_at_end=True, 
         seed=SEED,
-        push_to_hub=True
+        #push_to_hub=True
     )
 
     trainer = Trainer(
@@ -187,9 +187,15 @@ if __name__ == '__main__':
 
     trainer.train()
     trainer.save_model()
-    trainer.push_to_hub()
+    #trainer.push_to_hub()
+
+    # save 
+    path = "./{}-ft-with-non-challenging".format(MODEL)
+    model = GPT2LMHeadModel.from_pretrained(path)
+    model.push_to_hub("{}-ft-with-non-challenging".format(MODEL), use_temp_dir=True)
 
     # Generate continuations
+    '''
     if COLAB:
         path = "./debiasing_model/{}-ft-with-non-challenging".format(MODEL)
         prompt_path = "./debiasing_model/sd-input/rtp-prompts.txt"
@@ -211,6 +217,8 @@ if __name__ == '__main__':
             sentence = generator(prompt, max_new_length = 20, num_return_sequences=1)[0]['generated_text'] 
             output = {"prompt": prompt, "sentence":sentence}
             json.dump(output, fp)
-            fp.write('\n')
+            fp.write('\n')   
+    '''
+
     # model.save_pretrained(path)
     # model = model.from_pretrained(path)
