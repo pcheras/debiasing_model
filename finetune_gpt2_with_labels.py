@@ -113,7 +113,8 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Load raw dataset
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
+    #data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-5k"
 
     # Preprocessing dataset
     if COLAB:
@@ -190,9 +191,9 @@ if __name__ == '__main__':
     #trainer.push_to_hub()
 
     # save 
-    path = "./{}-ft-with-non-challenging".format(MODEL)
-    model = GPT2LMHeadModel.from_pretrained(path)
-    model.push_to_hub("{}-ft-with-non-challenging".format(MODEL), use_temp_dir=True)
+    #path = "./{}-ft-with-non-challenging".format(MODEL)
+    #model = GPT2LMHeadModel.from_pretrained(path)
+    #model.push_to_hub("{}-ft-with-non-challenging".format(MODEL), use_temp_dir=True)
 
     # Generate continuations
     '''
@@ -214,7 +215,7 @@ if __name__ == '__main__':
     with open(filename, 'w') as fp:
         for i in tqdm(range(N)):
             prompt = prompts[i]['prompt']['text']
-            sentence = generator(prompt, max_new_length = 20, num_return_sequences=1)[0]['generated_text'] 
+            sentence = generator(prompt, max_new_tokens = 20, num_return_sequences=1)[0]['generated_text'] 
             output = {"prompt": prompt, "sentence":sentence}
             json.dump(output, fp)
             fp.write('\n')   
