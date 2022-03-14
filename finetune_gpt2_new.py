@@ -101,7 +101,7 @@ class CustomTrainer(Trainer):
         for i in range(len(shifts)):
             prompts_mask.append(shifts[i] + prompts_length[i % batch])
         for i in range(len(prompts_mask)):
-            target_ids[i, :prompts_mask[i]] = -100
+            target_ids[i, :prompts_mask[0]] = -100
 
 
         position_ids = attention_mask.long().cumsum(-1) - 1
@@ -110,7 +110,7 @@ class CustomTrainer(Trainer):
         outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
         lm_logits = outputs[1].clone().detach()
 
-        for idx in range(prompts_length[0], prompts_length[0] + 20):
+        for idx in range(prompts_mask[0], prompts_mask[0] + 20):
             lm_logits[:, idx, :] = model.logits_processor(input_ids=None, scores=lm_logits[:, idx, :])
         
         loss_fct = nn.CrossEntropyLoss()
