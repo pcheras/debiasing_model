@@ -27,12 +27,12 @@ SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "sep_token": "<|SEP|>"}
 
 MAXLEN = 768  # {768, 1024, 1280, 1600}
-TRAIN_SIZE = 0.7
+TRAIN_SIZE = 0.8
 if USE_APEX:
     TRAIN_BATCHSIZE = 4
     BATCH_UPDATE = 16
 else:
-    TRAIN_BATCHSIZE = 2
+    TRAIN_BATCHSIZE = 8
     BATCH_UPDATE = 32
 EPOCHS = 4
 LR = 5e-4
@@ -113,8 +113,8 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Load raw dataset
-    #data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-5k"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
+    # data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-5k"
 
     # Preprocessing dataset
     if COLAB:
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     datasets = load_dataset(
         "json", data_files={"train": train_path, "validation": val_path})
     tokenized_datasets = datasets.map(
-        tokenize_function, batched=True, remove_columns=["text"])
+        tokenize_function, batched=True, batch_size=len(datasets['train']), remove_columns=["text"])
     train_dataset = tokenized_datasets["train"]
     val_dataset = tokenized_datasets["validation"]
 
