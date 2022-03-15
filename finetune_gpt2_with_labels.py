@@ -32,7 +32,7 @@ if USE_APEX:
     TRAIN_BATCHSIZE = 4
     BATCH_UPDATE = 16
 else:
-    TRAIN_BATCHSIZE = 8
+    TRAIN_BATCHSIZE = 4
     BATCH_UPDATE = 32
 EPOCHS = 4
 LR = 5e-4
@@ -113,8 +113,10 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Load raw dataset
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
+    # data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-25k"
+    # data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-10k"
     # data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-5k"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-1k"
 
     # Preprocessing dataset
     if COLAB:
