@@ -8,7 +8,7 @@ This is an experimental project extending on [Self-Diagnosis and Self-Debiasing:
 ## Using our model 
 ```python
 from transformers import AutoModel
-model = AutoModel.from_pretrained("newtonkwan/gpt2-xl-fine-tuned-debiased")
+model = AutoModel.from_pretrained("newtonkwan/gpt2-xl-ft-with-non-challenging-25k")
 ```
 
 ## Datasets 
