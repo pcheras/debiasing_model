@@ -55,3 +55,38 @@ def create_score_table(file_paths : List[str], model_names : List[str], output_p
     final_df.to_csv(output_path, index=True)
         
     #return final_df
+    
+    
+    
+def frequency_table(score_dfs, model_names, output_path):
+
+    """"
+    scored_dfs: list of pandas DataFrames containing the scores
+    model_names: list of strings containing the model_names 
+    output_path: Path to output the resulting CSV file
+    """
+
+    freq_dfs = []
+
+    for df in score_dfs:
+        vals = [np.mean(df.iloc[: , i].values > 0.5) for i in range(1, len(df.columns)-1)]
+        vals = np.round(np.array(vals) * 100, 1)
+        vals = np.append(vals, [np.mean(vals)])
+        vals = np.round(vals, 1)
+        vals = np.array(vals).reshape(1, len(vals))
+        # Create new dataframe 
+        freq_df = pd.DataFrame(data=vals, columns=df.columns.values[1:])
+        freq_dfs.append(freq_df)
+
+    final_df = pd.concat(freq_dfs, axis=0)
+    final_df['PPL'] = np.ones(len(final_df)) # placeholder for perplexity scores
+    final_df.index = model_names
+
+    perc_changes =[np.around(100 * (final_df.values[j, :] - final_df.values[0, :]) / final_df.values[0, :], 0).astype(int) for j in range(1, len(final_df))]
+
+    for j in range(1, len(final_df)):
+        p_change = perc_changes[j-1]
+        for k in range(len(final_df.columns)):
+            final_df.iloc[j, k] = str(final_df.iloc[j, k]) + ' ' + f'({p_change[k]})'
+
+    final_df.to_csv(output_path, index=True)
