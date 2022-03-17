@@ -230,7 +230,7 @@ if __name__ == '__main__':
 
     txt_data = data_set_name + ".txt"
     json_data = data_set_name + ".json"
-    txt_to_json(sd_output_path + txt_data, sd_output_path + json_data, add_prompt=True)
+    txt_to_json(sd_output_path + txt_data, sd_output_path + json_data, add_prompt=True, full_sentence=True)
     
     TRAIN_SIZE = 0.7
     with open(sd_output_path + json_data, encoding='utf-8') as json_file:
@@ -264,7 +264,7 @@ if __name__ == '__main__':
 
     # Train
     tokenized_datasets = datasets.map(
-    tokenize_function, batched=True, batch_size=len(datasets['train']), remove_columns=["text"])
+        tokenize_function, batched=True, batch_size=len(datasets['train']), remove_columns=["text"])
     train_dataset = tokenized_datasets["train"]
     val_dataset = tokenized_datasets["validation"]
 
