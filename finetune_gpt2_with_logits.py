@@ -21,13 +21,13 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = False
+COLAB = True
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = False
+USE_APEX = True
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2-large'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
-UNFREEZE_LAST_N = 3  # The last N layers to unfreeze for training
+MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
                   "unk_token": "<|UNK|>",
@@ -38,12 +38,12 @@ MAXLEN = 768  # {768, 1024, 1280, 1600}
 TRAIN_SIZE = 0.8
 if USE_APEX:
     TRAIN_BATCHSIZE = 4
-    BATCH_UPDATE = 16
+    BATCH_UPDATE = 32
 else:
     TRAIN_BATCHSIZE = 2
-    BATCH_UPDATE = 32
+    BATCH_UPDATE = 16
 EPOCHS = 4
-LR = 5e-5
+LR = 5e-7
 EPS = 1e-8
 WARMUP_STEPS = 1e2
 SEED = 2020
@@ -107,7 +107,7 @@ class CustomTrainer(Trainer):
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 
-        outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
+        outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids, use_cache=False)
         lm_logits = outputs[1].clone().detach()
 
         for idx in range(prompts_mask[0], prompts_mask[0] + 20):
@@ -139,23 +139,6 @@ class DataCollator:
         return output_dict
 
 
-def show_random_elements(dataset, num_examples=2):
-    assert num_examples <= len(
-        dataset), "Can't pick more elements than there are in the dataset."
-    picks = []
-    for _ in range(num_examples):
-        pick = random.randint(0, len(dataset)-1)
-        while pick in picks:
-            pick = random.randint(0, len(dataset)-1)
-        picks.append(pick)
-
-    df = pd.DataFrame(dataset[picks])
-    for column, typ in dataset.features.items():
-        if isinstance(typ, ClassLabel):
-            df[column] = df[column].transform(lambda i: typ.names[i])
-    display(HTML(df.to_html()))
-
-
 def get_tokenizer(model_name):
     # GPT2Tokenizer.from_pretrained(model_name)
     tokenizer = GPT2Tokenizer.from_pretrained(model_name, use_fast=True)
@@ -171,14 +154,6 @@ def get_model(model_name, tokenizer):
     if COLAB:
         model.cuda()
     return model
-
-
-def find_element_in_list(element, list_element):
-    try:
-        index_element = list_element.index(element)
-        return index_element
-    except ValueError:
-        return None
 
 
 def tokenize_function(input):
@@ -279,9 +254,10 @@ if __name__ == '__main__':
         per_device_train_batch_size=TRAIN_BATCHSIZE,
         per_device_eval_batch_size=TRAIN_BATCHSIZE,
         gradient_accumulation_steps=BATCH_UPDATE,
+        gradient_checkpointing=True,
         evaluation_strategy="epoch",
         save_strategy="epoch",
-        fp16=False,  # fp16=True,
+        fp16=USE_APEX,  # fp16=True,
         fp16_opt_level=APEX_OPT_LEVEL,
         warmup_steps=WARMUP_STEPS,
         learning_rate=LR,

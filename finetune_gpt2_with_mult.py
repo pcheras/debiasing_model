@@ -125,23 +125,6 @@ class DataCollator:
         return output_dict
 
 
-def show_random_elements(dataset, num_examples=2):
-    assert num_examples <= len(
-        dataset), "Can't pick more elements than there are in the dataset."
-    picks = []
-    for _ in range(num_examples):
-        pick = random.randint(0, len(dataset)-1)
-        while pick in picks:
-            pick = random.randint(0, len(dataset)-1)
-        picks.append(pick)
-
-    df = pd.DataFrame(dataset[picks])
-    for column, typ in dataset.features.items():
-        if isinstance(typ, ClassLabel):
-            df[column] = df[column].transform(lambda i: typ.names[i])
-    display(HTML(df.to_html()))
-
-
 def get_tokenizer(model_name):
     # GPT2Tokenizer.from_pretrained(model_name)
     tokenizer = GPT2Tokenizer.from_pretrained(model_name, use_fast=True)
@@ -156,14 +139,6 @@ def get_model(model_name, tokenizer):
     if COLAB:
         model.cuda()
     return model
-
-
-def find_element_in_list(element, list_element):
-    try:
-        index_element = list_element.index(element)
-        return index_element
-    except ValueError:
-        return None
 
 
 def tokenize_function(input):
@@ -202,7 +177,7 @@ def freeze_layer(model):
 
 if __name__ == '__main__':
     # Pre Process
-    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-beston"
+    data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-1k"
     if COLAB:
         sd_output_path = "./debiasing_model/sd-output/"
         trainer_data_path = "./debiasing_model/trainer_data/"
