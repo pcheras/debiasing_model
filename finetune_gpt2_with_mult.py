@@ -26,8 +26,8 @@ DEBUG = False
 INPUT_DIR = 'articles'
 USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
-UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
+MODEL = 'gpt2-large'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+UNFREEZE_LAST_N = 3  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
                   "unk_token": "<|UNK|>",
@@ -40,10 +40,10 @@ if USE_APEX:
     TRAIN_BATCHSIZE = 4
     BATCH_UPDATE = 16
 else:
-    TRAIN_BATCHSIZE = 1
-    BATCH_UPDATE = 16
+    TRAIN_BATCHSIZE = 2
+    BATCH_UPDATE = 32
 EPOCHS = 4
-LR = 5e-4
+LR = 5e-5
 EPS = 1e-8
 WARMUP_STEPS = 1e2
 SEED = 2020
@@ -103,51 +103,12 @@ class CustomTrainer(Trainer):
         for i in range(len(prompts_mask)):
             target_ids[i, :prompts_mask[0]] = -100
 
-
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 
         outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
-        lm_logits = outputs[1].clone().detach()
-
-        for idx in range(prompts_mask[0], prompts_mask[0] + 20):
-            lm_logits[:, idx, :] = model.logits_processor(input_ids=None, scores=lm_logits[:, idx, :])
-        
-        loss_fct = nn.CrossEntropyLoss()
-        
-        # Get the first one, they should all be the same at this point
-        lm_logits = lm_logits[0]
-        sm_lm_logits = nn.functional.softmax(lm_logits, dim=1)
-        biased_logits = outputs[1][0]
-        sm_outputs = nn.functional.softmax(biased_logits, dim=1)
-        loss = loss_fct(sm_lm_logits.view(-1, model.config.vocab_size), sm_outputs.view(-1, model.config.vocab_size))
+        loss = outputs.get('loss')
         return (loss, outputs) if return_outputs else loss
-    
-    # def compute_loss(self, model, inputs, return_outputs=False):
-    #     prompts = inputs.get("prompts")
-    #     inputs.pop("prompts")
-    #     prompts_length = inputs.get("prompts_length")
-    #     inputs.pop("prompts_length")
-    #     cont_logits = inputs.get("cont_logits")
-    #     inputs.pop("cont_logits")
-
-    #     # forward pass
-    #     outputs = model(**inputs)
-    #     softmax_cont_logits = nn.functional.softmax(cont_logits, dim=2)
-    #     logits = outputs.get("logits")
-    #     softmax_logits = nn.functional.softmax(logits, dim=2)
-    #     cont_logits_padded = softmax_logits.clone().detach()
-
-    #     m, n, p = cont_logits_padded.shape
-    #     for i in range(m):
-    #         for j in range(prompts_length[i], prompts_length[i] + 20):
-    #             cont_logits_padded[i][j] = softmax_cont_logits[i][j -
-    #                                                               prompts_length[i]]
-    #     loss_fct = nn.CrossEntropyLoss()
-    #     loss = loss_fct(
-    #         softmax_logits.view(-1, self.model.config.vocab_size), cont_logits_padded.view(-1, self.model.config.vocab_size))
-    #     return (loss, outputs) if return_outputs else loss
-
 
 class DataCollator:
     def __init__(self, tokenizer):
@@ -208,21 +169,14 @@ def find_element_in_list(element, list_element):
 def tokenize_function(input):
     prompts = input["prompt"]
     temp_dict = tokenizer(prompts)
-    # output_texts, output_scores = sd.gen_prompt_and_debiased_scores(
-    #     wrapper, prompts)
 
     encodings_dict = tokenizer(input["text"], padding=True)
-    encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
+    encodings_dict["labels"] = encodings_dict["input_ids"]
     encodings_dict["prompt_length"] = copy.deepcopy(encodings_dict["labels"])
-
+    print(len(encodings_dict["labels"][0]))
     for i in range(len(encodings_dict["labels"])):
         length_prompt = len(temp_dict["input_ids"][i])
-        for j in range(length_prompt):
-            encodings_dict["labels"][i][j] = -100
         encodings_dict["prompt_length"][i] = length_prompt
-
-        # output_scores[i] = [x[0] for x in output_scores[i]]
-        # encodings_dict["cont_logits"][i] = output_scores[i]
 
     return encodings_dict
 
@@ -235,7 +189,7 @@ def freeze_layer(model):
 
     for i, m in enumerate(model.transformer.h):
         # Only un-freeze the last n transformer blocks
-        if i+1 > 12 - UNFREEZE_LAST_N:
+        if i+1 > model.config.n_layer - UNFREEZE_LAST_N:
             for parameter in m.parameters():
                 parameter.requires_grad = True
 
@@ -296,13 +250,19 @@ if __name__ == '__main__':
     train_dataset = tokenized_datasets["train"]
     val_dataset = tokenized_datasets["validation"]
 
+    if COLAB:
+        path = "./debiasing_model/{}-vanilla-debiased".format(MODEL)
+    else:
+        path = "./{}-vanilla-debiased".format(MODEL)
+
     training_args = TrainingArguments(
-        f"{MODEL}-vanilla-debiased",  # output_dir="/content/",
+        path,  # output_dir="/content/",
         num_train_epochs=EPOCHS,
         per_device_train_batch_size=TRAIN_BATCHSIZE,
         per_device_eval_batch_size=TRAIN_BATCHSIZE,
         gradient_accumulation_steps=BATCH_UPDATE,
         evaluation_strategy="epoch",
+        save_strategy="epoch",
         fp16=False,  # fp16=True,
         fp16_opt_level=APEX_OPT_LEVEL,
         warmup_steps=WARMUP_STEPS,
@@ -310,7 +270,7 @@ if __name__ == '__main__':
         adam_epsilon=EPS,
         weight_decay=0.01,
         save_total_limit=1,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
         remove_unused_columns=False
     )
 
@@ -327,13 +287,10 @@ if __name__ == '__main__':
     trainer.save_model()
 
     # Generate
-    if COLAB:
-        path = "./debiasing_model/{}-vanilla-debiased".format(MODEL)
-    else:
-        path = "./{}-vanilla-debiased".format(MODEL)
+   
     generator = pipeline('text-generation', model=path)
 
-    prefix_text = "Trump is the new"
+    prefix_text = "She told police he took his penis out of his"
     sentence = generator(prefix_text, max_new_length=20,
                          num_return_sequences=1)[0]['generated_text']
     print(sentence)
