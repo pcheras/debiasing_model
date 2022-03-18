@@ -21,10 +21,10 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = False
+COLAB = True
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = False
+USE_APEX = True
 APEX_OPT_LEVEL = 'O1'
 PUSH_TO_HUB = False
 MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
@@ -116,7 +116,7 @@ class CustomTrainer(Trainer):
         
         loss_fct = nn.CrossEntropyLoss()
         
-        # Get the first one, they should all be the same at this point
+        # Get the first ones, they should all be the same at this point
         lm_logits = lm_logits[:batch]
         target = nn.functional.softmax(lm_logits, dim=1)
         biased_logits = outputs[1][:batch]
@@ -245,9 +245,9 @@ if __name__ == '__main__':
     val_dataset = tokenized_datasets["validation"]
 
     if COLAB:
-        path = "./debiasing_model/{}-vanilla-debiased".format(MODEL)
+        path = "./debiasing_model/{}_ft_logits_10k".format(MODEL)
     else:
-        path = "./{}-vanilla-debiased".format(MODEL)
+        path = "./{}_ft_logits_10k".format(MODEL)
 
     training_args = TrainingArguments(
         path,  # output_dir="/content/",

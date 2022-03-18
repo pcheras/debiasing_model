@@ -21,13 +21,14 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = False
+COLAB = True
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = False
+USE_APEX = True
 APEX_OPT_LEVEL = 'O1'
-MODEL = 'gpt2-large'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
-UNFREEZE_LAST_N = 3  # The last N layers to unfreeze for training
+PUSH_TO_HUB = True
+MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
+UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
                   "eos_token": "<|EOS|>",
                   "unk_token": "<|UNK|>",
@@ -38,7 +39,7 @@ MAXLEN = 768  # {768, 1024, 1280, 1600}
 TRAIN_SIZE = 0.8
 if USE_APEX:
     TRAIN_BATCHSIZE = 4
-    BATCH_UPDATE = 16
+    BATCH_UPDATE = 32
 else:
     TRAIN_BATCHSIZE = 2
     BATCH_UPDATE = 32
@@ -226,9 +227,9 @@ if __name__ == '__main__':
     val_dataset = tokenized_datasets["validation"]
 
     if COLAB:
-        path = "./debiasing_model/{}-vanilla-debiased".format(MODEL)
+        path = "./debiasing_model/{}_ft_mult_10k".format(MODEL)
     else:
-        path = "./{}-vanilla-debiased".format(MODEL)
+        path = "./{}_ft_mult_10k".format(MODEL)
 
     training_args = TrainingArguments(
         path,  # output_dir="/content/",
@@ -238,7 +239,7 @@ if __name__ == '__main__':
         gradient_accumulation_steps=BATCH_UPDATE,
         evaluation_strategy="epoch",
         save_strategy="epoch",
-        fp16=False,  # fp16=True,
+        fp16=USE_APEX,  # fp16=True,
         fp16_opt_level=APEX_OPT_LEVEL,
         warmup_steps=WARMUP_STEPS,
         learning_rate=LR,
@@ -246,7 +247,8 @@ if __name__ == '__main__':
         weight_decay=0.01,
         save_total_limit=1,
         load_best_model_at_end=True,
-        remove_unused_columns=False
+        remove_unused_columns=False,
+        push_to_hub=PUSH_TO_HUB
     )
 
     trainer = CustomTrainer(
@@ -260,6 +262,8 @@ if __name__ == '__main__':
 
     trainer.train()
     trainer.save_model()
+    if PUSH_TO_HUB:
+        trainer.push_to_hub()
 
     # Generate
     generator = pipeline('text-generation', model=path)
