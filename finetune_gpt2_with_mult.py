@@ -107,7 +107,7 @@ class CustomTrainer(Trainer):
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 
-        outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids)
+        outputs = model(input_ids=input_ids_repeated, attention_mask=attention_mask, position_ids=position_ids, labels=target_ids, use_cache=False)
         loss = outputs.get('loss')
         return (loss, outputs) if return_outputs else loss
 
@@ -237,6 +237,7 @@ if __name__ == '__main__':
         per_device_train_batch_size=TRAIN_BATCHSIZE,
         per_device_eval_batch_size=TRAIN_BATCHSIZE,
         gradient_accumulation_steps=BATCH_UPDATE,
+        gradient_checkpointing=True,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         fp16=USE_APEX,  # fp16=True,
