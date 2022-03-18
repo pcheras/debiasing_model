@@ -21,11 +21,12 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = True
+COLAB = False
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = True
+USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
+PUSH_TO_HUB = False
 MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
@@ -116,9 +117,9 @@ class CustomTrainer(Trainer):
         loss_fct = nn.CrossEntropyLoss()
         
         # Get the first one, they should all be the same at this point
-        lm_logits = lm_logits[0]
+        lm_logits = lm_logits[:batch]
         target = nn.functional.softmax(lm_logits, dim=1)
-        biased_logits = outputs[1][0]
+        biased_logits = outputs[1][:batch]
         input = biased_logits
         loss = loss_fct(input.view(-1, model.config.vocab_size), target.view(-1, model.config.vocab_size))
         return (loss, outputs) if return_outputs else loss
@@ -265,7 +266,8 @@ if __name__ == '__main__':
         weight_decay=0.01,
         save_total_limit=1,
         load_best_model_at_end=True,
-        remove_unused_columns=False
+        remove_unused_columns=False,
+        push_to_hub=PUSH_TO_HUB
     )
 
     trainer = CustomTrainer(
@@ -279,7 +281,8 @@ if __name__ == '__main__':
 
     trainer.train()
     trainer.save_model()
-
+    if PUSH_TO_HUB:
+        trainer.push_to_hub()
     # Generate
    
     generator = pipeline('text-generation', model=path)

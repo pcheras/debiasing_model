@@ -138,6 +138,7 @@ def get_model(model_name, tokenizer):
     model = GPT2LMHeadModel.from_pretrained(model_name, pad_token_id=tokenizer.eos_token_id)
     if COLAB:
         model.cuda()
+    
     return model
 
 
