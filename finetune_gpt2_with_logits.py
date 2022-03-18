@@ -100,10 +100,10 @@ class CustomTrainer(Trainer):
         target_ids = input_ids_repeated.clone()
         
         prompts_mask = []
-        for i in range(len(shifts)):
-            prompts_mask.append(shifts[i] + prompts_length[i % batch])
-        for i in range(len(prompts_mask)):
-            target_ids[i, :prompts_mask[0]] = -100
+        for i in range(batch):
+            prompts_mask.append(shifts[0] + prompts_length[i])
+        for i in range(len(target_ids)):
+            target_ids[i, :prompts_mask[i%batch]] = -100
 
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
