@@ -21,12 +21,12 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = True
+COLAB = False
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = True
+USE_APEX = False
 APEX_OPT_LEVEL = 'O1'
-PUSH_TO_HUB = True
+PUSH_TO_HUB = False
 MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
@@ -118,10 +118,11 @@ class CustomTrainer(Trainer):
         
         # Get the first ones, they should all be the same at this point
         lm_logits = lm_logits[:batch]
-        target = nn.functional.softmax(lm_logits, dim=1)
+        target = nn.functional.softmax(lm_logits, dim=2)
         biased_logits = outputs[1][:batch]
         input = biased_logits
-        loss = loss_fct(input.view(-1, model.config.vocab_size), target.view(-1, model.config.vocab_size))
+        loss = 0
+        loss += loss_fct(input.view(-1, model.config.vocab_size), target.view(-1, model.config.vocab_size))
         return (loss, outputs) if return_outputs else loss
     
 
