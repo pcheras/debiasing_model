@@ -21,12 +21,12 @@ from transformers import pipeline
 from util.txt_to_json import txt_to_json
 
 # Global
-COLAB = False
+COLAB = True
 DEBUG = False
 INPUT_DIR = 'articles'
-USE_APEX = False
+USE_APEX = COLAB
 APEX_OPT_LEVEL = 'O1'
-PUSH_TO_HUB = False
+PUSH_TO_HUB = COLAB
 MODEL = 'gpt2-xl'  # {gpt2, gpt2-medium, gpt2-large, gpt2-xl}
 UNFREEZE_LAST_N = 2  # The last N layers to unfreeze for training
 SPECIAL_TOKENS = {"bos_token": "<|BOS|>",
