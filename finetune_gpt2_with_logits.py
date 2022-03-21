@@ -169,7 +169,7 @@ def tokenize_function(input):
         length_prompt = len(temp_dict["input_ids"][i])
         encodings_dict["prompt_length"][i] = length_prompt
 
-        for j in range(length_prompt, length_prompt+20):
+        for j in range(length_prompt, min(len(encodings_dict["input_ids"][i]),length_prompt+20)):
             encodings_dict["input_ids"][i][j] = tokenizer.mask_token_id
             
     encodings_dict["labels"] = encodings_dict["input_ids"].copy()
