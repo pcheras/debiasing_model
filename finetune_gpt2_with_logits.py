@@ -161,15 +161,23 @@ def get_model(model_name, tokenizer):
 def tokenize_function(input):
     prompts = input["prompt"]
     temp_dict = tokenizer(prompts)
+    
+    #alternative fix for out of bounds error on 10k dataset
+    ml = 0
+    for vec in tokenizer(input["text"])['input_ids']:
+      if len(vec) > ml:
+        ml = len(vec)
 
-    encodings_dict = tokenizer(input["text"], padding=True)
+    encodings_dict = tokenizer(input["text"], padding='max_length',max_length = ml + 1)
+    
+    #encodings_dict = tokenizer(input["text"], padding=True)
     
     encodings_dict["prompt_length"] = copy.deepcopy(encodings_dict["input_ids"])
     for i in range(len(encodings_dict["input_ids"])):
         length_prompt = len(temp_dict["input_ids"][i])
         encodings_dict["prompt_length"][i] = length_prompt
 
-        for j in range(length_prompt, min(len(encodings_dict["input_ids"][i]),length_prompt+20)):
+        for j in range(length_prompt, length_prompt+20):
             encodings_dict["input_ids"][i][j] = tokenizer.mask_token_id
             
     encodings_dict["labels"] = encodings_dict["input_ids"].copy()
