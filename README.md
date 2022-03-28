@@ -5,6 +5,10 @@ This is an experimental project extending on [Self-Diagnosis and Self-Debiasing:
 ## Pipeline 
 ![Alt text](images/Self-Debiasing_Pipeline.drawio.png "Title")
 
+## 🩹 How to train with your own data
+
+To train with your own data. Put the data in ``model-input/prompts+continuations/`` and follow the corresponding format. Then run ``python3 ./finetune_gpt2_with_logits`` 
+   
 ## Using our model 
 ```python
 from transformers import AutoModel
