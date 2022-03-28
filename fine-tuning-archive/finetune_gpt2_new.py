@@ -208,8 +208,6 @@ def find_element_in_list(element, list_element):
 def tokenize_function(input):
     prompts = input["prompt"]
     temp_dict = tokenizer(prompts)
-    # output_texts, output_scores = sd.gen_prompt_and_debiased_scores(
-    #     wrapper, prompts)
 
     encodings_dict = tokenizer(input["text"], padding=True)
     encodings_dict["labels"] = copy.deepcopy(encodings_dict["input_ids"])
@@ -250,11 +248,11 @@ if __name__ == '__main__':
     # Pre Process
     data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-beston"
     if COLAB:
-        sd_output_path = "./debiasing_model/sd-output/"
-        trainer_data_path = "./debiasing_model/trainer_data/"
+        sd_output_path = "./debiasing_model/model-input/prompts+continuations/"
+        trainer_data_path = "./debiasing_model/temp_trainer_data/"
     else:  
-        sd_output_path = "./sd-output/"
-        trainer_data_path = "./trainer_data/"
+        sd_output_path = "./model-input/prompts+continuations/"
+        trainer_data_path = "./temp_trainer_data/"
 
     txt_data = data_set_name + ".txt"
     json_data = data_set_name + ".json"

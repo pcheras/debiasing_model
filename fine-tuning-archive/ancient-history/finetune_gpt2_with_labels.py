@@ -120,11 +120,11 @@ if __name__ == '__main__':
 
     # Preprocessing dataset
     if COLAB:
-        sd_output_path = "./debiasing_model/sd-output/"
-        trainer_data_path = "./debiasing_model/trainer_data_newton/"
+        sd_output_path = "./debiasing_model/model-input/prompts+continuations/"
+        trainer_data_path = "./debiasing_model/temp_trainer_data/"
     else:  
-        sd_output_path = "./sd-output/"
-        trainer_data_path = "./trainer_data_newton/"
+        sd_output_path = "./model-input/prompts+continuations/"
+        trainer_data_path = "./temp_trainer_data/"
 
     txt_data = data_set_name + ".txt"
     json_data = data_set_name + ".json"
@@ -201,10 +201,10 @@ if __name__ == '__main__':
     '''
     if COLAB:
         path = "./debiasing_model/{}-ft-with-non-challenging".format(MODEL)
-        prompt_path = "./debiasing_model/sd-input/rtp-prompts.txt"
+        prompt_path = "./debiasing_model/model-input/prompts/rtp-prompts.txt"
     else:
         path = "./{}-ft-with-non-challenging".format(MODEL)
-        prompt_path = "./sd-input/rtp-prompts.txt"
+        prompt_path = "./model-input/prompts/rtp-prompts.txt"
 
     # get prompts 
     prompts = []
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     for line in open(prompt_path, 'r'):
         prompts.append(json.loads(line))
     generator = pipeline('text-generation', model=path)
-    filename = "./sd-output/{}-fine-tuned-challenging-continuations-100-20_v3.txt".format(MODEL)
+    filename = "./model-input/prompts+continuations/{}-fine-tuned-challenging-continuations-100-20_v3.txt".format(MODEL)
     print("Generating continuations for {}".format(MODEL))
     with open(filename, 'w') as fp:
         for i in tqdm(range(N)):

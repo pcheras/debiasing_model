@@ -1,11 +1,9 @@
 from get_perspectiveAPI_scores import get_API_scores, PerspectiveApiScorer
 from txt_to_json import txt_to_json
 import json
-import re
 import numpy as np
 from typing import List
 import pandas as pd
-import time
 
 
 

@@ -1,5 +1,4 @@
 import json
-import re
 
 def txt_to_json(input_path : str, output_path : str = 'debiased_continuations.json', add_prompt = False, full_sentence = False):
     

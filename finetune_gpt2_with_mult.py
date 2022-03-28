@@ -181,11 +181,11 @@ if __name__ == '__main__':
     # Pre Process
     data_set_name = "gpt2-xl-debiased-non-challenging-continuations-100-20-1k"
     if COLAB:
-        sd_output_path = "./debiasing_model/sd-output/"
-        trainer_data_path = "./debiasing_model/trainer_data/"
+        sd_output_path = "./debiasing_model/model-input/prompts+continuations/"
+        trainer_data_path = "./debiasing_model/temp_trainer_data/"
     else:  
-        sd_output_path = "./sd-output/"
-        trainer_data_path = "./trainer_data/"
+        sd_output_path = "./model-input/prompts+continuations/"
+        trainer_data_path = "./temp_trainer_data/"
 
     txt_data = data_set_name + ".txt"
     json_data = data_set_name + ".json"
